@@ -38,6 +38,7 @@ class Cursor(object):
     def __init__(self):
         self.x = 0
         self.y = 0
+        self.max_x = 0
 
 
 class Sla(object):
@@ -113,7 +114,7 @@ class Sla(object):
             if not obj.hasBeenOutput and not obj.isBeingRendered:
                 if obj.y <= self.cursor.y:
                     # object is higher than cursor
-                    if obj.x <= self.cursor.x:
+                    if obj.x <= self.cursor.max_x:
                         self._outputObj(obj)
 
     def _outputObj(self, obj):
@@ -181,16 +182,29 @@ class TextFrame(PageObject):
     def getNextPara(self, cursor, pageobjects):
         if self.isBeingRendered == False:
             self.isBeingRendered = True
-        self.cursorDelta = [0, 0]
+
         text = ''
+        last_rowheight = 0
         for item in self.items[self.next_item_pos:]:
-            textdelta, deltc = item.getStringData()
+            textdelta, deltc, blockelement = item.getStringData()
             text = text + textdelta
             print '\n##'
             print 'old cursor  ', cursor.x, cursor.y
-            print 'got delta c ', deltc.x, deltc.y
+            print 'got delta c ', deltc.x, deltc.y,
+            if len(textdelta) < 20:
+                print textdelta
+            else:
+                print textdelta[:18], textdelta[-18:]
+
             cursor.x += deltc.x
-            cursor.y += deltc.y
+            if blockelement:
+                cursor.y += deltc.y
+                last_rowheight = deltc.y
+                #cursor.x = self.x
+            elif deltc.y > last_rowheight:
+                cursor.y += (deltc.y - last_rowheight)
+                last_rowheight = deltc.y
+
             max_x = self.x + (self.coln * self.colwidth) - (0.5 * self.colgap)
             max_y = self.y + self.height
             print 'cursor+deltc', cursor.x, '/', max_x, ':', cursor.y, '/', max_y
@@ -244,6 +258,7 @@ class TextFrame(PageObject):
 
 
             max_x = self.x + (self.coln * self.colwidth) - (0.5 * self.colgap)
+            cursor.max_x = max_x
             max_y = self.y + self.height
             print 'new cursor: ', cursor.x, '/', max_x, ':', cursor.y, '/', max_y
 
@@ -253,9 +268,6 @@ class TextFrame(PageObject):
         self.hasBeenOutput = True
         self.isBeingRendered = False
         return text
-
-    def getCursorDelta(self):
-        return self.cursorDelta
 
         
 class Image(PageObject):
@@ -290,6 +302,8 @@ class TextFrameItem(object):
         else:
             self.linespace = default_linespace
 
+    def isBlockElement(self):
+        return False
 
     def toString(self):
         return ''
@@ -304,7 +318,7 @@ class TextFrameItem(object):
         return cursor
 
     def getStringData(self):
-        return (self.toString(), self.getRenderSize())
+        return (self.toString(), self.getRenderSize(), self.isBlockElement())
 
 
 class Text(TextFrameItem):
@@ -321,6 +335,9 @@ class Para(TextFrameItem):
         
     def toString(self):
         return '\n'
+
+    def isBlockElement(self):
+        return True
 
 
 class Tab(TextFrameItem):
@@ -339,5 +356,6 @@ f.close()
 
 #from PIL import ImageFont
 #font = ImageFont.truetype('fonts/FreeSansRegular.ttf', 12)
-#print font.getsize('asdfasdkjdhfakjls')
-        
+#print font.getsize('\n')
+#print font.getsize('\n\n')
+
