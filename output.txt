@@ -1,529 +1,247 @@
-[IMAGE: Skutter_header_final.png]HEADER TITLE
-The sub-header Text Goes Here
-[IMAGE: morphy.jpg][IMAGE: Fade_effect_002.png][IMAGE: ../../magpi-templates/0_templates_with_bleeds/generic-article/Fade_effect.png]Skutter - Expanding your senses with I2C
-
-
-Stephen Richards
-Guest Writer
-DIFFICULTY : ADVANCED
-Limitations of the GPIO
-
-
+[IMAGE: Skutter_header_final.png ]HEADER TITLEThe sub-header Text Goes Here[IMAGE: morphy.jpg ][IMAGE: Fade_effect_002.png ][IMAGE: ../../magpi-templates/0_templates_with_bleeds/generic-article/Fade_effect.png ]Skutter - Expanding your senses with I2C
+Stephen RichardsGuest WriterDIFFICULTY : ADVANCEDLimitations of the GPIO
 
 We all love the Raspberry Pi. For me the best thing about it, apart from its low cost and low power consumption, is the General Purpose Input and Output header (GPIO). Having that sort of access between the virtual and real world on such a tiny yet powerful computer has allowed me to begin working on a robotics project which until recently I was only able to imagine.
 
-
-
 In spite of this, the Raspberry Pi does have some limitations when it comes to building robots. The GPIO has only a limited number of pins to work with. Let's say you have built two simple H-bridge circuits to control motors on your robot. That might take up as much as eight of your GPIOs. Let's imagine you want to include some micro switches on the gripper of a robot arm and some more switches on the robot's bumper (or fender if you are in the US) to detect collisions... before long we've got more inputs and outputs than we've got pins! Things are only complicated further when we consider that if we draw more than 48mA in total from the GPIO at any point, we run the risk of frying the whole thing!
-
-
 
 Introducing I2C
 
-
-
 So what is a robot builder to do? Happily there is a solution to all of this: something that throws open the doors to a whole galaxy of wonderful electronic devices and sensors. This solution is called the I2C bus (often called the "two wire interface").
-
    
-
 Some people pronounce I2C as "eye two see" while others say "eye squared see"; either is acceptable. One of the many available devices that use this is a "GPIO expander" such as the MCP23008. 
 ##~~ NEW COLUMN
 [Ed: The MCP23017 which is used in the Pi Matrix is the 16-bit version]. There are many others also available such as "analogue to digital converters", "accelerometers" and many more which I will cover later.
 
-
-
 Using the I2C bus can be daunting at first. I2C is unlike USB. USB just seems to work because, although highly complex, it is tightly controlled with a very rigid set of standards. The I2C bus in comparison is much more of a free-for-all. Nevertheless it is extremely effective.
-
-[IMAGE: i2c.png]
-
+[IMAGE: i2c.png ]
 To work with this beast, first we need to understand it. It's known by the nickname "two wire" because it uses two wires to communicate between two or more devices. One of these devices is known as the master with the other devices known as the slaves. In most conceivable situations the master would be the Raspberry Pi.
 
-
-
 A tale of two wires
-
-
 
 On the GPIO header are two pins called SDA and SCL. These two pins are the keys to opening the I
 ##~~ NEXT PAGE ~~##
 2C bus. SDA refers to Serial DAta and SCL refers to Serial CLock.
-
 4
-
-
-
 The SDA is able to transmit a series of bursts of eight 1s and 0s (called a "byte"). These bytes of data are sent along the SDA wire (bus) and are received by all of the slaves on the bus. The "clock" on the SCL wire is used by both the master and the slaves to allow timings to coincide with these 1s or 0s.
-
  
-
 For example, imagine if the byte sent across the SDA bus from the master was "11111110". How would the slave know that this was seven separate "1" bits or just one single "1" bit that has been turned on for a long time? The clock pulses on the SCL bus allows the slave to know this.
-
-[IMAGE: sda_scl.png]When the master sends a byte down the SDA bus, every slave on that bus will receive that byte. "Addressing" ensures that the right device actually uses it. When two devices communicate over I2C they do so in a series of bytes. This series of bytes is called a "message". A message always begins with a special "start" sequence and ends with a special "stop" sequence. This start and stop sequence of bits cannot occur at any other time.
-
-
+[IMAGE: sda_scl.png ]When the master sends a byte down the SDA bus, every slave on that bus will receive that byte. "Addressing" ensures that the right device actually uses it. When two devices communicate over I2C they do so in a series of bytes. This series of bytes is called a "message". A message always begins with a special "start" sequence and ends with a special "stop" sequence. This start and stop sequence of bits cannot occur at any other time.
 
 After a start sequence, the next byte of information is a seven bit address. A byte contains eight bits and the eighth bit of the address is used to tell the slave device if it is going to be used to send or receive data.
-
 Once the first address byte has been sent, only the device with that corresponding address continues paying attention to the rest of the message. All the other devices stop paying attention until the stop message sequence is sent.
 ##~~ NEW COLUMN
 
 
-
-
 Disorganisation is the key to success
-
-
 
 This seems logical so far, but now we get to the disorganised part. The I2C protocol dictates what the "start" message and "stop" message must be and that the first byte of the message must be the address of the slave device. After that there are no rules at all. Every different I2C device is allowed to use all the data between the address and the stop message in any way it wants. Before you can use an I2C device, you have to study the documentation (called the data sheet) for it to understand how it uses all those bytes of data.
 
-
-
 In the rest of this article I will provide an example of this by working through the relevant parts of the datasheet for the MCP23008 I2C 8-bit GPIO expander, plus how to connect this to the Raspberry Pi and how to write a simple Python program to control it.
-
-
 
 Controlling the MCP23008
 
-
-
 The MCP23008 is very useful to a robot builder because it gives us a relatively simple means of providing more inputs and outputs than the standard GPIO and with more power available.
 
-
-
 As stated already, every I2C device works differently. For this reason it is essential to obtain a copy of the datasheet for the device you are working with. To get the most from this article download a copy of the MCP23008 datasheet (http://ww1.microchip.com/downloads/en/DeviceDoc/21919e.pdf). From here on in I will be referring to the "MCP23008/MCP23S08 8-Bit I/O Expander with Serial Interface" published in  2007 by Microchip Technology Inc.
-
-
  
-
 The first useful piece of information in this datasheet is the pin out diagram on page 2. Make sure you look at the pin out for the correct device as several are shown. Using this diagram we can begin to make sense of how we can connect this microchip to our Raspberry Pi.
 ##~~ NEXT PAGE ~~##
 
 
-
-
-
 The first question is which way is "up" on our microchip? If you look carefully you will see a small notch on one end of the device. This signifies the "top".
-
-[IMAGE: chip.png]
-
+[IMAGE: chip.png ]
 The key here are the first two pins on the left hand side: SCL and SDA. These can be connected to the corresponding pins on the GPIO of the Raspberry Pi.
-
-
 
 The next three pins are A2, A1 and A0. From page 5 these are the address pins. 
 
-
-
 On page 8 the datasheet states "The slave address contains four fixed bits and three user-defined hardware address bits". This means this part of the address byte can be configured to whatever we want. Let's assume we connect  pins A2, A1 and A0 to ground. This is equivalent to making them 000. On the same page we are given a diagram that shows that the first part of the address for this device must begin with 0100. Our three pins set the second part of this address to 000, therefore the address for this device configured in this way would be  0100000.
 
-
-
 The very final bit in this address is used to command the MCP23008 to work as an input or an output. The diagram on page 8 of the datasheet shows we must use 0 for write (output) and 1 for read (input). 
-
-
 
 The next pin along is called RESET. The pinout description on page 5 declares this must be biased externally. For normal use you can get away with just connecting this pin directly to the positive (+ve) terminal of your power supply.
 ##~~ NEW COLUMN
 
 
-
-
 Power requirements
-
-
 
 The other two really important pins are VSS and VDD. VSS is ground and VDD is +ve power. (I found that out by checking the pin out description again on page 5 of the datasheet).
 
-
-
 Skipping along in the datasheet to page 23 we find the electrical characteristics of the device. From here we can see that this microchip can run on 3.3V logic or 5V logic. Additionally we can see that the device can sink or source 25mA from each GPIO up to a total of 125 mA.
-
-
 
 Access to this extra power boost from the GPIO is very useful. Not only does it give us more pins, it supplies more power as well! This is a great advantage when building a H-bridge motor controller, for example. It also means we can use much cheaper, lower valued, current gain transistors than those that were necessary when running one directly from the Raspberry Pi GPIO.
 
-
-
 There is another important health warning to consider here however. Although it is possible to run this device on 3.3V or 5V, the Raspberry Pi itself is not tolerant of 5V. Connecting this device to a 5V supply and then trying to use your Raspberry Pi to control it is very likely to cause terminal damage to at least the GPIO, if not the whole Raspberry Pi! Happily it is possible to convert the 3.3V logic of the Raspberry Pi to 5V logic and let the two run safely together using a simple logic level converter circuit. I will describe this circuit later on. For now I will explain how to start using the MCP23008 with the Raspberry Pi.
-
-
 
 Setting up the MCP23008 and RasPi
 ##~~ NEXT PAGE ~~##
 
-
 6
-
-
-
 Start off by carefully plugging the MCP23008 into a breadboard. You will see a "gutter" going down the middle of your breadboard. This gutter isolates the two halves of the breadboard from each other. This means that you can plug in the MCP23008 and know that you are not connecting the pins on either side of the chip to each other. The gutter also makes it easy to remove a microchip. You can carefully work a small flat headed screwdriver under the chip and along the gutter to lift the chip out without  bending all the pins.
-
-
-
 
 Before we can start using I2C on the Raspberry Pi we need to make a few changes to some configuration files (assuming you are using a Raspbian distro). The I2C drivers are disabled by default. Let's enable them. From the command line, enter:
 
-
-
-
  cd /etc
-
  sudo nano modprobe.d/raspi-blacklist.conf
-
-
-
 
 Look for the entry blacklist i2c-bcm2708 and add a hash '#' at the beginning of the line so it becomes #blacklist i2c-bcm2708. Press <Ctrl>+<X> then press <Y> and <Enter> to save and exit.
 
-
-
 Next edit the modules file. From the command line, enter:
 
-
-
-
  sudo nano modules
-
-
 
 Add i2c-dev on a new line. Press <Ctrl>+<X> then press <Y> and <Enter> to save and exit.
 ##~~ NEW COLUMN
 
 
-
-
-
 Next install some tools and Python support. From the command line, enter:
 
-
-
  sudo apt-get update
-
  sudo apt-get install python-smbus
-
  sudo apt-get install i2c-tools
-
-[IMAGE: gpio.png]
-
+[IMAGE: gpio.png ]
 Now add the 'pi' user to the i2c group. From the command line, enter:
-
-
 
  sudo adduser pi i2c
 
-
-
 Finally, shutdown your Raspberry Pi. From the command line, enter:
 
-
-
  
-
  sudo halt
-
-
-
 
 
 Plug in the MCP23008
 
-
-
-
 Connect the SDA and SCL on the MCP23008 to the corresponding GPIO connections on the Raspberry Pi.
 
-
-
 Connect VDD and RESET on the MCP23008 to 3.3V power on the GPIO. Connect VDD on the MCP23008 to Ground on the Raspberry Pi. 
-
 We are now ready to try a few experiments. Turn on the Raspberry Pi.
 ##~~ NEXT PAGE ~~##
 
-
-
-[IMAGE: i2cdetect.png]
-
+[IMAGE: i2cdetect.png ]
 From the command line, enter:
-
-
 
  sudo i2cdetect -y 1
 
-
-
 NOTE: Use 0 instead of 1 for the bus number in the above command if you have an original (revision 1) Raspberry Pi. The revision 1 Raspberry Pi does not have any mounting holes.
-
-
 
 If everything is connected up properly you should see output something like the screenshot on the next page.
 
-
-
 This means the MCP23008 is communicating with the Pi on address (hex) 0x20.
-
-
 
 If we want to use more power than the GPIO on the Raspberry Pi can deliver there are a few more steps we need to take first.
 
-
-
 Converting 3.3V to 5V logic
 
-
-
 Connecting VDD of the MCP23008 to 3.3V on the GPIO of the Raspberry Pi means that the output of this chip is still affected by the GPIO power limitations. We can connect the device to the 5V supply instead, however that means you are mixing 5V logic with 3.3V logic on the Raspberry Pi and it will not take kindly to this!
-
-[IMAGE: wired_chip.png]
-
+[IMAGE: wired_chip.png ]
 The circuit diagram on the right shows a simple circuit that can safely convert 3.3V logic to 5V logic and vice versa. It uses two MOSFETs. A suitable MOSFET is the commonly available BSN20.
 ##~~ NEW COLUMN
 
 
-
-
 Be warned however that the BSN20 is a very small device. To get it working I cut the tracks on a small piece of stripboard, soldered the terminals of the MOSFET across these and then added some larger connectors to make it suitable for plugging into breadboard.
-
-[IMAGE: circuit_diagram.png]
-
+[IMAGE: circuit_diagram.png ]
 The symbol used in the circuit diagram is not the conventional MOSFET symbol. I have shown it like this to help visualise the way the little device should be connected.
-
-
 
 The purple line signifies 3.3V from the GPIO. This goes to the "Gate" on the MOSFET. The red line signifies the 5V supply. This is connected to the "Drain" of both of the MOSFETs via a "pull up" resistor. (In I2C the natural state of the bus is "low". When a current is applied to the bus via a pull up resistor, it temporarily pulls the signal up to an "on" or "high" condition).
 
-
-
 The value of the pull up resistor is not that important. It's generally agreed it should be between 1K and 10K. Many people use 4.7K and report that it works well and this is the value I used for my version of the circuit.
-
-
 
 Finally, we need to provide conversion from SCL and SDA on the Raspberry Pi. These lines should be connected to the "Source" of the MOSFET.
 
-
-
 Everything on the right hand side of this circuit is now a 5V I2C bus and everything on the left is a 3.3V I2C bus and the two can work safely together in series!
-
 Creating an example Python H-bridge control program
-
-
 
 We are now ready to control the GPIO pins 0 to 7 on the MCP23008. Looking at page 6 of the datasheet we can see that the device uses a number of internal registers to control everything it is capable of. The only registers we are really interested in are IODIR and GPIO. Nevertheless it is important to set all the other registers as well to try to prevent anything unexpected happening.
 ##~~ NEXT PAGE ~~##
 
-
-8
-
-Register
-Address
-
-IODIR
-0x00
-IPOL
-0x01
-GPINTEN
-0x02
-DEFVAL
-0x03
-INTCON
-0x04
-IOCON
-0x05
-GPPU
-0x06
-INTF
-0x07
-INTCAP
-0x08
-GPIO
-0x09
-OLAT
-0x0A
-
-
-
-
-Description
-5
-7
-0 = out (write), 1 = in (read)
-9
-Input / output polarity on GPIO bit 7 to bit 0. If bit is set, GPIO value will reflect the inverted value.
-Interrupt on change on bit 7 to bit 0. If bit is set then it will generate an interrupt if that pin changes.
-Default value to compare against GPINTEN bit 7 to bit 0. If bit is set, opposite value on corresponding pin will generate interrupt.
-Interrupt control register. If bit is set then corresponding IO pin will be compared against the value set in the DEFVAL register.
-[IMAGE: fanfold-paper.png]Setup: bit 5 = sequential operation, bit 4 = slew rate, bit 3 is not used, bit 2 open drain, bit 1 = sets polarity of INT pin. Only functions if bit 2 is clear.
-GPPU pull up resistor, bit 7 to bit 0. If bit is set and pin is input then this will pull up the pin with 100k resistor.
-Interrupt flag, bit 7 to bit 0. If bit is set it means the associated pin will generate an interrupt. A set bit tells us which pin caused the interrupt. READ ONLY.
-Interrupt capture. Captures GPIO value at time of interrupt, bit 7 to bit 0. Remains unchanged until interrupt is cleared via a read of INTCAP or GPIO.
-
-The GPIO, bit 7 to bit 0.
-Output latches.
-
-
-Sometimes the language used in data sheets can be confusing so I have tried to translate into plain English the name, address and function of each register and put it in the table on the next page. I recommend reading the datasheet first and then check your understanding. Being able to read these documents is an important skill.
+8RegisterAddress
+IODIR0x00IPOL0x01GPINTEN0x02DEFVAL0x03INTCON0x04IOCON0x05GPPU0x06INTF0x07INTCAP0x08GPIO0x09OLAT0x0A
+Description570 = out (write), 1 = in (read)9Input / output polarity on GPIO bit 7 to bit 0. If bit is set, GPIO value will reflect the inverted value.Interrupt on change on bit 7 to bit 0. If bit is set then it will generate an interrupt if that pin changes.Default value to compare against GPINTEN bit 7 to bit 0. If bit is set, opposite value on corresponding pin will generate interrupt.Interrupt control register. If bit is set then corresponding IO pin will be compared against the value set in the DEFVAL register.[IMAGE: fanfold-paper.png ]Setup: bit 5 = sequential operation, bit 4 = slew rate, bit 3 is not used, bit 2 open drain, bit 1 = sets polarity of INT pin. Only functions if bit 2 is clear.GPPU pull up resistor, bit 7 to bit 0. If bit is set and pin is input then this will pull up the pin with 100k resistor.Interrupt flag, bit 7 to bit 0. If bit is set it means the associated pin will generate an interrupt. A set bit tells us which pin caused the interrupt. READ ONLY.Interrupt capture. Captures GPIO value at time of interrupt, bit 7 to bit 0. Remains unchanged until interrupt is cleared via a read of INTCAP or GPIO.
+The GPIO, bit 7 to bit 0.Output latches.Sometimes the language used in data sheets can be confusing so I have tried to translate into plain English the name, address and function of each register and put it in the table on the next page. I recommend reading the datasheet first and then check your understanding. Being able to read these documents is an important skill.
 ##~~ NEW COLUMN
 
 
-
-
 Python code
-
-
 
 The last Skutter article in issue 8 of The MagPi included some simple Python code to control a H-bridge motor controller connected to the GPIO on the Raspberry Pi.
 ##~~ NEXT PAGE ~~##
 
 
-
-
 The code on the next page will control two H-bridge controllers connected to the GPIO's on an MCP23008. (Don't forget to change the bus to 0 if you are using a revision 1 Raspberry Pi).
-
-
 
 Conclusion
 
 
-
 ##~~ NEW COLUMN
-
 I hope this will help you to begin to understand how to control I2C devices and how useful they can be to a robot builder. If you find an I2C device that can perform a vital function for a robot you are building, (such as an analogue to digital converter, an accelerometer or a distance sensor), hopefully you will now be able to read through the datasheet and make sense of how to control it.
-
-
-
-
 
 
 
 #! /usr/bin/python
 
-
-
 import smbus import time 
 ##~~ NEXT PAGE ~~##
 
-
 address = 0x20 
 
-
-
 # Define all the registers
-
 IODIR = 0x00 
-
 IPOL = 0x01 
-
 GPINTEN = 0x02
-
 DEFVAL = 0x03 
-
 INTCON = 0x04   
-
 IOCON = 0x05 
-
 GPPU = 0x06
-
 INTF = 0x07
-
 INTCAP = 0x08
-
 GPIO = 0x09
-
 OLAT = 0x0A
-
-
 
 bus = smbus.SMBus(1)# Change to 0 for revision 1 Raspberry Pi
 
-
-
 # Set IODIR as OUTPUT
-
 bus.write_byte_data(address, IODIR, 0b00000000)
 
-
-
 # Reset all the other registers
-
 for reg in [IPOL,GPINTEN,DEFVAL,INTCON,IOCON,GPPU,INTF,INTCAP,GPIO,OLAT]:
-
     bus.write_byte_data(address, reg, 0b00000000)
 
-
-
 # Set the GPIO's to turn on/off transistors in H-bridge. See circuit diagram.
-
-[IMAGE: fanfold-paper.png]#GPIO 0 - 1 = motor 1 fwd.
-
+[IMAGE: fanfold-paper.png ]#GPIO 0 - 1 = motor 1 fwd.
 #GPIO 1 - 1 = motor 1 fwd.
-
-10
-#GPIO 2 - 1 = motor 1 rev.
-
+10#GPIO 2 - 1 = motor 1 rev.
 #GPIO 3 - 1 = motor 1 rev.
-
 #GPIO 4 - 1 = motor 2 fwd
-
 #GPIO 5 - 1 = motor 2 fwd
-
 #GPIO 6 - 1 = motor 2 rev
-
 #GPIO 7 - 1 = motor 2 rev
 
-
-
 #----------------------------- IMPORTANT --------------------------------------
-
 # IF GPIO 0, 1 is "1" THEN GPIO 2, 3 must be "0" ELSE transistor short circuit.
-
 # IF GPIO 4, 5 is "1" THEN GPIO 6, 7 must be "0" ELSE transistor short circuit.
-
 #------------------------------------------------------------------------------
 
-
-
 # Set all GPIO off
-
 bus.write_byte_data(address, GPIO, 0b00000000))
-
 # Test motor 1 and motor 2 FWD for 3 secs
-
 bus.write_byte_data(address, GPIO, 0b00000011))
-
 time.sleep(3)
-
 # Set all GPIO off
-
 bus.write_byte_data(address, GPIO, 0b00000000))
-
 time.sleep(1)
-
 # Test motor 1 and motor 2 REV for 3 secs
-
 bus.write_byte_data(address, GPIO, 0b00001100)
-
 time.sleep(3)
-
 # Set all GPIO off
-
 bus.write_byte_data(address, GPIO, 0b00000000)
-
 time.sleep(1)
-
 # Test hard right turn for 1 sec
-
 bus.write_byte_data(address, GPIO, 0b11000011)
-
 time.sleep(1)
-
 # Test hard left turn for 1 sec
-
 bus.write_byte_data(address, GPIO, 0b00111100)
-
 time.sleep(1)
-
 # Set all GPIO off
-
 bus.write_byte_data(address, GPIO, 0b00000000)
-
-
-[IMAGE: i2c.png][IMAGE: sda_scl.png][IMAGE: chip.png][IMAGE: gpio.png][IMAGE: i2cdetect.png][IMAGE: circuit_diagram.png][IMAGE: wired_chip.png][IMAGE: fanfold-paper.png][IMAGE: fanfold-paper.png]
+[IMAGE: i2c.png ][IMAGE: sda_scl.png ][IMAGE: chip.png ][IMAGE: gpio.png ][IMAGE: i2cdetect.png ][IMAGE: circuit_diagram.png ][IMAGE: wired_chip.png ][IMAGE: fanfold-paper.png ][IMAGE: fanfold-paper.png ]

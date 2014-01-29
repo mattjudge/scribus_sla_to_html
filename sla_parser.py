@@ -1,6 +1,6 @@
-
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ElementTree
 from PIL import ImageFont  # using pillow, for windows
+import parser_objects
 
 font_base_path = 'fonts/'
 fonts = {}
@@ -17,12 +17,12 @@ def add_font(name, size, default_font=None, default_fontsize=None):
         return font
     except IOError:
         if default_font and default_fontsize:
-            print '! Failed to find font: ',  path, size, ' , using default instead'
+            print '! Failed to find font: ', path, size, ' , using default instead'
             default_fontsize = int(default_fontsize)
             fonts[(name, size)] = fonts[(default_font, default_fontsize)]
             return fonts[(default_font, default_fontsize)]
         else:
-            print '! Failed to find font: ',  path, size, ' , none supplied as default'
+            print '! Failed to find font: ', path, size, ' , none supplied as default'
 
 
 def get_font(name, size, default_font=None, default_fontsize=None):
@@ -42,7 +42,7 @@ class Cursor(object):
 
 class Sla(object):
     def __init__(self, fname):
-        self.tree = ET.parse(fname)
+        self.tree = ElementTree.parse(fname)
         self.root = self.tree.getroot()
         self.document = self.root.find('DOCUMENT')
         self.layers = None
@@ -52,10 +52,10 @@ class Sla(object):
         self.cursor = None
         self.page_objects = []
         self.output = ''
-        
+
     def get_element(self, expr):
         return self.document.find(expr)
-        
+
     def get_elements(self, expr):
         return self.document.findall(expr)
 
@@ -70,8 +70,8 @@ class Sla(object):
         if a.x < b.x: return -1
         if a.x > b.x: return 1
         return 0
-    
-    def to_string(self):
+
+    def get_output(self):
         default_style = self.document.find("./CHARSTYLE[@DefaultStyle='1']")
         add_font(default_style.attrib['FONT'], default_style.attrib['FONTSIZE'])
         default_font = default_style.attrib['FONT']
@@ -100,7 +100,7 @@ class Sla(object):
         print self.page_objects[35].el.attrib['NEXTITEM']
 
         self.cursor = Cursor()
-        self.output = ''
+        self.output = []
         sorted_page_objects = sorted(self.page_objects, cmp=self._compare_heights)
         for obj in sorted_page_objects:
             self._output_object(obj)
@@ -125,13 +125,13 @@ class Sla(object):
         if not isinstance(obj, TextFrame):
             #self.output += 'cursor: ' + str(self.cursor.x) + '\t' + str(self.cursor.y) + '\n'
             #self.output += 'obj ps: ' + str(obj.x) + '\t' + str(obj.y) + '\n'
-            self.output += obj.to_string()  # + '\n'
+            self.output.append(obj.get_output())  # + '\n'
         else:
             # is text frame
             while not obj.has_been_rendered:
                 #self.output += 'cursor: ' + str(self.cursor.x) + '\t' + str(self.cursor.y) + '\n'
                 #self.output += 'obj ps: ' + str(obj.x) + '\t' + str(obj.y) + '\n'
-                self.output += obj.get_next_para(self.cursor, self.page_objects) + '\n'
+                self.output.append(obj.get_next_para(self.cursor, self.page_objects))
                 self._check_for_skipped_objects()
 
 
@@ -165,6 +165,11 @@ class PageObject(object):
     def to_string(self):
         return ''
 
+    def get_output(self):
+        obj = parser_objects.Content()
+        obj.set_content(self.to_string())
+        return obj
+
 
 class TextFrame(PageObject):
     def __init__(self, el, default_font, default_fontsize, default_linespace):
@@ -185,7 +190,7 @@ class TextFrame(PageObject):
     def get_max_x(self):
         return self.x + (self.coln * self.colwidth) - (0.5 * self.colgap)
 
-    def get_next_para(self, cursor, pageobjects):
+    def _get_next_para_text(self, cursor, pageobjects):
         if not self.is_being_rendered:
             self.is_being_rendered = True
 
@@ -274,7 +279,10 @@ class TextFrame(PageObject):
         self.is_being_rendered = False
         return text
 
-        
+    def get_next_para(self, cursor, pageobjects):
+        return parser_objects.Paragraph(content=self._get_next_para_text(cursor, pageobjects))
+
+
 class Image(PageObject):
     def __init__(self, el, default_font, default_fontsize, default_linespace):
         PageObject.__init__(self, el, default_font, default_fontsize, default_linespace)
@@ -286,7 +294,10 @@ class Image(PageObject):
             path = '~~'
         self.has_been_rendered = True
         print '[IMAGE: ' + path + ']'
-        return '[IMAGE: ' + path + ']'
+        return path
+
+    def get_output(self):
+        return parser_objects.Image(src=self.to_string())
 
 
 class TextFrameItem(object):
@@ -326,19 +337,24 @@ class TextFrameItem(object):
     def get_string_data(self):
         return self.to_string(), self.get_render_size(), self.is_block_element()
 
+    def get_output(self):
+        obj = parser_objects.Content()
+        obj.set_content(self.to_string())
+        return obj
+
 
 class Text(TextFrameItem):
     def __init__(self, el, default_font, default_fontsize, default_linespace):
         TextFrameItem.__init__(self, el, default_font, default_fontsize, default_linespace)
-        
+
     def to_string(self):
         return self.el.attrib['CH']
 
-        
+
 class Para(TextFrameItem):
     def __init__(self, el, default_font, default_fontsize, default_linespace):
         TextFrameItem.__init__(self, el, default_font, default_fontsize, default_linespace)
-        
+
     def to_string(self):
         return '\n'
 
@@ -349,19 +365,8 @@ class Para(TextFrameItem):
 class Tab(TextFrameItem):
     def __init__(self, el, default_font, default_fontsize, default_linespace):
         TextFrameItem.__init__(self, el, default_font, default_fontsize, default_linespace)
-        
+
     def to_string(self):
         return '\t'
-            
-        
-sla = Sla('eg.sla')
 
-f = open('output.txt', 'w')
-f.write(sla.to_string())
-f.close()
-
-#from PIL import ImageFont
-#font = ImageFont.truetype('fonts/FreeSansRegular.ttf', 12)
-#print font.getsize('\n')
-#print font.getsize('\n\n')
 
